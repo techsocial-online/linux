@@ -1,1 +1,33 @@
+When we feel system is slow, we can follow certain steps that will help us diagnose the bottleneck issue, where the problem is, whats causing it and how to fix it.
 
+First, run 'uptime' command to see how long the system has been up and running and check load avg. load avg = processes in R or D state, or lock contention.
+If load avg is high run either 'top' or 'vmstat'
+
+'top' will show what process is consuming cpu, disk(I/O wait) and memory usage.
+
+'vmstat' is mainly to see memory pressure( swap in/out) but can also show cpu,disk load etc.
+
+Check whether the process is in user space or kernel space or stuck in I/O  by running 'pidstat'. The cmd will tell us what each process is consuimg.
+
+If is a disk bottleneck issue, run 'iostat', 'iotop' to know more about it or 'pidstat' to see what process is on disk bottleneck.
+
+Every performance issue is always one of these:
+
+Resource                   Typical Problems
+
+CPU	high                load, runaway processes
+Memory	                   OOM, swapping
+Disk I/O	              slow database, high latency
+Network	                  packet drops, latency
+Kernel /scheduler        	locks, syscall issues
+
+
+Check system issue like this:
+
+The 5 Resources Every Linux System Has
+
+1) Is system overloaded? (run uptime,top to check)
+2) Which resource?   (see whether memory,cpu, disk I/O is the issue)
+3) Which process?   (see which process is consuming that)
+4) What exactly is it doing?  (run 'strace' to see what syscall is the process making and what exacty is it doing)
+5) Fix or mitigate
