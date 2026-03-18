@@ -1,0 +1,366 @@
+
+CPU Scheduling & Process Execution (Linux Internals)
+
+Everything that runs on Linux is a **process competing for CPU time**.
+
+If you deeply understand this part, tools like `top`, `pidstat`, `perf`, `strace` will suddenly make **perfect sense**.
+
+---
+
+# 1️⃣ First Principle: CPU Is a Limited Resource
+
+Your system:
+
+```
+8 CPU cores
+```
+
+Meaning **8 processes can run at the exact same time**.
+
+If there are:
+
+```
+8 processes → all run
+16 processes → 8 run, 8 must wait
+```
+
+Those waiting processes go into something called the:
+
+```
+Run Queue
+```
+
+---
+
+# 3️⃣ Process States (Real Kernel Behavior)
+
+Every process in Linux is always in a **state**.
+
+Common ones:
+
+```
+R → Running or runnable
+S → Sleeping
+D → Uninterruptible sleep (usually disk I/O)
+Z → Zombie
+```
+
+You can see them in:
+
+```
+ps aux
+```
+
+or
+
+```
+top
+```
+
+Example:
+
+```
+PID USER STAT COMMAND
+1000 root R nginx
+1001 root S sshd
+1002 root D postgres
+```
+
+Meaning:
+
+```
+R → on CPU or ready
+S → waiting for event
+D → waiting for disk
+```
+
+---
+
+# 4️⃣ Context Switching (Critical Concept)
+
+When many processes want CPU, Linux rapidly **switches between them**.
+
+Example:
+
+```
+process A runs
+switch
+process B runs
+switch
+process C runs
+```
+
+This happens **thousands of times per second**.
+
+This is called:
+
+```
+Context switch
+```
+
+Because the CPU must save:
+
+```
+registers
+memory state
+program counter
+```
+
+Then load another process.
+
+---
+
+# 5️⃣ Why Context Switching Matters
+
+Too many switches = overhead.
+
+Example scenario:
+
+```
+500 runnable processes
+8 CPUs
+```
+
+Kernel constantly switching.
+
+Result:
+
+```
+CPU time wasted on switching
+```
+
+Instead of doing real work.
+
+You can measure switches:
+
+```
+vmstat 1
+```
+
+Look at:
+
+```
+cs → context switches
+```
+
+---
+
+# 6️⃣ Time Slices (CPU Sharing)
+
+Linux doesn't let one process hog CPU forever.
+
+Instead:
+
+```
+process gets time slice
+```
+
+Example:
+
+```
+5 ms
+```
+
+After that:
+
+```
+scheduler may switch to another process
+```
+
+This makes Linux **fair**.
+
+---
+
+# 7️⃣ Linux Scheduler
+
+Modern Linux uses:
+
+```
+CFS
+```
+
+The **Completely Fair Scheduler**.
+
+Goal:
+
+```
+every process gets fair CPU time
+```
+
+Concept:
+
+```
+virtual runtime
+```
+
+Processes that ran less get priority.
+
+---
+
+# 8️⃣ Example Scheduler Behavior
+
+Example processes:
+
+```
+A CPU heavy
+B CPU heavy
+C CPU heavy
+```
+
+Scheduler rotates:
+
+```
+A → B → C → A → B → C
+```
+
+But if:
+
+```
+D wakes up
+```
+
+Scheduler may run D earlier because it **hasn't run recently**.
+
+---
+
+# 9️⃣ Nice Values (Priority Control)
+
+Users can influence scheduling.
+
+Range:
+
+```
+-20 → highest priority
+19 → lowest priority
+```
+
+Check:
+
+```
+ps -eo pid,ni,cmd
+```
+
+Change:
+
+```
+nice -n 10 command
+```
+
+or
+
+```
+renice
+```
+
+---
+
+# 🔟 Real Production Example
+
+Server slow.
+
+You check:
+
+```
+uptime
+```
+
+```
+load average: 20
+```
+
+Machine has:
+
+```
+8 CPUs
+```
+
+Meaning:
+
+```
+12 processes waiting
+```
+
+Next step:
+
+```
+top
+```
+
+Look for:
+
+```
+R state processes
+```
+
+Or high CPU.
+
+---
+
+# 1️⃣1️⃣ Real Insight (Many Engineers Miss)
+
+High CPU **doesn't always mean problem**.
+
+Example:
+
+```
+CPU 95%
+load 2
+cores 8
+```
+
+Totally fine.
+
+But:
+
+```
+CPU 40%
+load 20
+```
+
+Something is wrong.
+
+Likely:
+
+```
+disk wait
+```
+
+---
+
+# 1️⃣2️⃣ The Key Metric Engineers Watch
+
+Run queue length.
+
+Check using:
+
+```
+vmstat 1
+```
+
+Look at:
+
+```
+r
+```
+
+Example:
+
+```
+r b swpd free buff cache
+5 0 0 ...
+```
+
+Meaning:
+
+```
+5 runnable processes
+```
+
+If:
+
+```
+r > CPU cores
+```
+
+CPU contention.
+
