@@ -1,0 +1,289 @@
+# Linux Page Cache (Why Linux Feels Fast)
+
+A key idea in Linux is:
+
+RAM is much faster than disk
+
+Approximate speeds:
+
+| Resource | Speed              |
+| -------- | ------------------ |
+| RAM      | ~100 nanoseconds   |
+| SSD      | ~100 microseconds  |
+| HDD      | ~5–10 milliseconds |
+
+That means:
+Disk can be 1000x slower than RAM
+
+So Linux does something very clever.
+
+# 1️⃣ The Core Idea
+
+When a program reads a file:
+
+read(file)
+
+Linux **does not just give the data to the program**.
+
+It also **keeps a copy in RAM**.
+
+This is called the:
+Page Cache
+
+So the flow becomes:
+
+First read
+process → disk → RAM → program
+
+Later:
+Second read
+process → RAM → program
+
+Disk is skipped completely.
+
+# 3️⃣ Page Cache Is Why “Free Memory” Looks Low
+
+Run:
+
+free -h
+
+Example output:
+              total   used   free   buff/cache
+Mem:           16G     8G     1G        7G
+```
+
+Many beginners panic:
+
+> Only 1GB free RAM??
+
+But actually:
+
+7GB = cache
+
+Linux is using spare RAM to cache disk data.
+
+And this memory can be **reclaimed instantly** if needed.
+
+# 4️⃣ Linux Philosophy
+
+Linux believes:
+
+Unused RAM = wasted RAM
+
+So it aggressively fills memory with:
+
+page cache
+filesystem metadata
+buffers
+
+But if an application needs memory:
+
+cache is dropped automatically
+
+No problem.
+
+---
+
+# 5️⃣ What Exactly Is Cached?
+
+The page cache stores **filesystem pages**.
+***Page cache = filesystem data cached in RAM.***
+
+Example:
+
+```
+file.txt
+```
+
+Internally becomes:
+
+```
+page 1
+page 2
+page 3
+```
+
+Each page usually:
+
+```
+4 KB
+```
+
+These pages are cached in RAM.
+
+---
+
+# 6️⃣ Reads vs Writes
+
+Page cache behaves slightly differently for reads and writes.
+
+### Read
+
+```
+disk → page cache → process
+```
+
+Future reads use cache.
+
+---
+
+### Write
+
+Linux often does:
+
+```
+process → page cache
+```
+
+Then later:
+
+```
+page cache → disk
+```
+
+This is called:
+
+```
+write-back caching
+```
+
+Meaning writes appear **instant**, but disk flush happens later.
+
+---
+
+# 7️⃣ Why This Matters for Performance
+
+Without page cache:
+
+```
+every read → disk
+```
+
+Server would be extremely slow.
+
+With page cache:
+
+```
+frequently accessed data → RAM
+```
+
+Huge speed improvement.
+
+Databases and web servers depend on this heavily.
+
+---
+
+# 8️⃣ How This Connects to Earlier Concepts
+
+Remember when we discussed **D-state processes**?
+
+If data is already cached:
+
+```
+read()
+→ RAM
+→ instant
+```
+
+No disk wait.
+
+Process never enters **D state**.
+
+But if cache misses:
+
+```
+read()
+→ disk
+→ process sleeps
+→ D state
+```
+
+Now disk latency affects performance.
+
+
+
+
+# 🔟 Another Useful Command
+
+You can see memory details:
+
+```
+cat /proc/meminfo
+```
+
+Interesting fields:
+
+```
+Cached
+Buffers
+MemAvailable
+Dirty
+Writeback
+```
+
+These tell you what the kernel is doing with memory.
+
+---
+
+# 1️⃣1️⃣ Real Production Scenario
+
+Example:
+
+User says:
+
+```
+API slow after reboot
+```
+
+But after 10 minutes:
+
+```
+API fast
+```
+
+Why?
+
+Because:
+
+```
+page cache warming
+```
+
+Frequently accessed data is gradually cached.
+
+Performance improves.
+
+---
+
+# 1️⃣2️⃣ One Important Warning
+
+Too much cache pressure can cause:
+
+```
+memory reclaim
+```
+
+Then kernel must:
+
+```
+evict pages
+write dirty pages
+free RAM
+```
+
+This can cause **performance spikes**.
+
+Tools like `vmstat` help detect this.
+
+ ------------------------------------------
+****The Engineer Trick: 4 Memory Buckets****
+
+ Instead of reading 40 lines, think in 4 buckets:
+
+    Total RAM
+    │
+    ├─ Used by applications
+    ├─ Page cache
+    ├─ Kernel memory
+    └─ Free
+
